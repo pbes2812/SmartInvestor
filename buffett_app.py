@@ -1,10 +1,10 @@
 import streamlit as st
 import yfinance as yf
-import openai
+from openai import OpenAI
 import os
 
-# 👉 Tilføj din egen OpenAI API-nøgle her
-openai.api_key = st.secrets["OPENAI_API_KEY"]
+# Opret OpenAI klient med API-nøgle fra Streamlit secrets
+client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
 st.set_page_config(page_title="BuffettGPT", layout="centered")
 st.title("📈 BuffettGPT – Værdibaseret aktievurdering")
@@ -30,7 +30,7 @@ def get_stock_data(ticker_symbol):
     dcf_intrinsic = None
     if fcf and price:
         try:
-            growth = 0.08  # 8% vækst
+            growth = 0.08
             years = 5
             discount_rate = 0.10
             future_value = fcf * ((1 + growth) ** years)
@@ -52,7 +52,7 @@ def get_stock_data(ticker_symbol):
 
 def ask_chatgpt_about_stock(data):
     prompt = f"""
-    Vurder følgende aktie ud fra Warren Buffetts metode:
+    Du er Warren Buffett, og du skal vurdere denne aktie ud fra dine investeringsprincipper.
 
     - Ticker: {data['Ticker']}
     - P/E: {data['P/E']}
@@ -64,15 +64,24 @@ def ask_chatgpt_about_stock(data):
     - DCF Intrinsic Value: {data['Estimated Intrinsic Value (DCF)']}
     - Current Price: {data['Current Price']}
 
-    Brug Buffetts principper: moat, margin of safety, sund økonomi og ledelse. 
-    Vurdér om aktien er interessant og undervurderet.
-    Forklar det som mentor for en investor.
+    Giv først en kort analyse på dansk af aktien ud fra dine principper:
+    - Forståelig forretning
+    - Moat
+    - Sund økonomi
+    - Margin of safety
+
+    Afslut din vurdering med en tydelig konklusion i store bogstaver:
+    - "KØB", hvis aktien er attraktiv og undervurderet
+    - "HOLD", hvis aktien er fair prissat men solid
+    - "SÆLG", hvis aktien er overvurderet eller ikke passer til dine kriterier
     """
-    response = openai.ChatCompletion.create(
+
+    response = client.chat.completions.create(
         model="gpt-4",
         messages=[{"role": "user", "content": prompt}]
     )
-    return response["choices"][0]["message"]["content"]
+
+    return response.choices[0].message.content
 
 if st.button("Analyser aktien"):
     if ticker:
@@ -89,3 +98,4 @@ if st.button("Analyser aktien"):
                 st.error(f"Noget gik galt: {e}")
     else:
         st.warning("Skriv en aktie-ticker først.")
+om
