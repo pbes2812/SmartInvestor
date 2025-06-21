@@ -48,7 +48,7 @@ if st.button("🔍 Vurdér aktie"):
         st.write(response.choices[0].message.content)
 
     except Exception as e:
-        st.error(f"Noget gik galt: {e}")import streamlit as st
+        st.error(f"Noget gik galt: {e}")
 import yfinance as yf
 import openai
 import os
