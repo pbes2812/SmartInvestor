@@ -50,7 +50,7 @@ def get_stock_data(ticker_symbol):
         "Current Price": price
     }
 
-def ask_chatgpt_about_stock(data):
+def ask_buffett_like_ai(data):
     prompt = f"""
     Du er Warren Buffett, og du skal vurdere denne aktie ud fra dine investeringsprincipper.
 
@@ -64,16 +64,16 @@ def ask_chatgpt_about_stock(data):
     - DCF Intrinsic Value: {data['Estimated Intrinsic Value (DCF)']}
     - Current Price: {data['Current Price']}
 
-    Giv først en kort analyse på dansk af aktien ud fra dine principper:
+    Giv en kort analyse på dansk af aktien ud fra:
     - Forståelig forretning
     - Moat
     - Sund økonomi
     - Margin of safety
 
-    Afslut din vurdering med en tydelig konklusion i store bogstaver:
-    - "KØB", hvis aktien er attraktiv og undervurderet
-    - "HOLD", hvis aktien er fair prissat men solid
-    - "SÆLG", hvis aktien er overvurderet eller ikke passer til dine kriterier
+    Afslut din vurdering med en tydelig anbefaling i store bogstaver:
+    - "KØB" hvis aktien er attraktiv og undervurderet
+    - "HOLD" hvis den er fair prissat men solid
+    - "SÆLG" hvis den er overvurderet eller ikke passer til dine kriterier
     """
 
     response = client.chat.completions.create(
@@ -91,11 +91,11 @@ if st.button("Analyser aktien"):
                 st.subheader("📊 Fundamentale nøgletal")
                 st.json(stock_data)
 
-                analysis = ask_chatgpt_about_stock(stock_data)
+                analysis = ask_buffett_like_ai(stock_data)
                 st.subheader("🤖 Buffetts vurdering")
                 st.markdown(analysis)
             except Exception as e:
                 st.error(f"Noget gik galt: {e}")
     else:
         st.warning("Skriv en aktie-ticker først.")
-om
+
