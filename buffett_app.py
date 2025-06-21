@@ -1,54 +1,4 @@
 import streamlit as st
-from openai import OpenAI
-import yfinance as yf
-import pandas as pd
-
-# Sæt din OpenAI nøgle via Streamlit secrets
-client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
-
-# Sideopsætning
-st.set_page_config(page_title="BuffettGPT", layout="centered")
-st.title("📈 BuffettGPT – Værdibaseret aktievurdering")
-
-# Input
-ticker = st.text_input("Indtast et aktieticker (f.eks. AAPL)", "AAPL")
-
-# Når brugeren trykker på knappen
-if st.button("🔍 Vurdér aktie"):
-    try:
-        stock = yf.Ticker(ticker)
-        info = stock.info
-
-        data = {
-            "Name": info.get("longName", "N/A"),
-            "P/E": info.get("trailingPE", "N/A"),
-            "ROIC": "N/A",  # Kan tilføjes med anden kilde
-            "FCF": info.get("freeCashflow", "N/A"),
-            "Debt": info.get("totalDebt", "N/A"),
-            "Stable": "Yes" if info.get("beta", 1.0) < 1.2 else "No"
-        }
-
-        st.subheader("🔢 Aktiedata")
-        st.json(data)
-
-        # Forbered prompt til OpenAI
-        messages = [
-            {"role": "system", "content": "Du er Warren Buffett."},
-            {"role": "user", "content": f"Her er nogle data om en aktie: {data}. Ville du købe den? Forklar hvorfor."}
-        ]
-
-        # Kald OpenAI chat API
-        response = client.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=messages
-        )
-
-        # Vis vurdering
-        st.subheader("📊 BuffettGPTs vurdering")
-        st.write(response.choices[0].message.content)
-
-    except Exception as e:
-        st.error(f"Noget gik galt: {e}")
 import yfinance as yf
 import openai
 import os
@@ -64,13 +14,40 @@ ticker = st.text_input("Indtast aktie-ticker (f.eks. AAPL, PG, JNJ)")
 def get_stock_data(ticker_symbol):
     stock = yf.Ticker(ticker_symbol)
     info = stock.info
+    fcf = info.get("freeCashflow", None)
+    pe = info.get("trailingPE", None)
+    roic = info.get("returnOnEquity", None)
+    beta = info.get("beta", 1)
+    debt = info.get("totalDebt", None)
+    price = info.get("currentPrice", None)
+
+    moat_score = 0
+    if roic and roic > 0.15:
+        moat_score += 1
+    if beta < 1:
+        moat_score += 1
+
+    dcf_intrinsic = None
+    if fcf and price:
+        try:
+            growth = 0.08  # 8% vækst
+            years = 5
+            discount_rate = 0.10
+            future_value = fcf * ((1 + growth) ** years)
+            dcf_intrinsic = future_value / ((1 + discount_rate) ** years)
+        except:
+            pass
+
     return {
         "Ticker": ticker_symbol,
-        "P/E": info.get("trailingPE"),
-        "ROIC": info.get("returnOnEquity"),
-        "FCF": info.get("freeCashflow"),
-        "Debt": info.get("totalDebt"),
-        "Stable": "Yes" if info.get("beta", 1) < 1 else "No"
+        "P/E": pe,
+        "ROIC": roic,
+        "Free Cash Flow": fcf,
+        "Debt": debt,
+        "Stable": "Yes" if beta < 1.2 else "No",
+        "Moat Score (0-2)": moat_score,
+        "Estimated Intrinsic Value (DCF)": round(dcf_intrinsic, 2) if dcf_intrinsic else "N/A",
+        "Current Price": price
     }
 
 def ask_chatgpt_about_stock(data):
@@ -80,12 +57,16 @@ def ask_chatgpt_about_stock(data):
     - Ticker: {data['Ticker']}
     - P/E: {data['P/E']}
     - ROIC: {data['ROIC']}
-    - Free Cash Flow: {data['FCF']}
+    - Free Cash Flow: {data['Free Cash Flow']}
     - Total Debt: {data['Debt']}
     - Stabilitet: {data['Stable']}
+    - Moat Score: {data['Moat Score (0-2)']}
+    - DCF Intrinsic Value: {data['Estimated Intrinsic Value (DCF)']}
+    - Current Price: {data['Current Price']}
 
     Brug Buffetts principper: moat, margin of safety, sund økonomi og ledelse. 
-    Vurdér om aktien er interessant, og forklar hvorfor.
+    Vurdér om aktien er interessant og undervurderet.
+    Forklar det som mentor for en investor.
     """
     response = openai.ChatCompletion.create(
         model="gpt-4",
