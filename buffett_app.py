@@ -146,6 +146,4 @@ st.sidebar.markdown("---")
 st.sidebar.subheader("📆 Seneste screening (simuleret)")
 today = datetime.date.today()
 st.sidebar.text(f"{today.strftime('%d-%m-%Y')}")
-st.sidebar.text("🔹 PG – KØB
-🔹 INTC – HOLD
-🔹 T – SÆLG")
+st.sidebar.text("🔹 PG – KØB\\n🔹 INTC – HOLD\\n🔹 T – SÆLG")
