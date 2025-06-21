@@ -1,0 +1,2 @@
+# SmartInvestor
+Invest as Buffet
