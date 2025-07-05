@@ -2,14 +2,16 @@ import streamlit as st
 import openai
 import yfinance as yf
 import os
+
 openai.api_key = os.environ.get("OPENAI_API_KEY")
 
-st.set_page_config(page_title="SmartInvestor med Intrinsic Value", layout="centered")
-st.title("📊 SmartInvestor – Buffett-analyse med intrinsic value")
+st.set_page_config(page_title="SmartInvestor v4", layout="centered")
+st.title("📊 SmartInvestor – Buffetts analyse med salgsvurdering")
 
 ticker = st.text_input("Indtast aktieticker (f.eks. AAPL, MSFT, NOVO-B.CO)", "")
+købspris = st.number_input("Indtast din købspris (valgfrit)", min_value=0.0, step=0.1, format="%.2f")
 prompt = st.text_area("Hvad vil du gerne have vurderet?",
-"Er denne aktie undervurderet ifølge Warren Buffetts principper?")
+"Er denne aktie undervurderet, og bør jeg sælge eller holde ud fra min købspris?")
 
 def hent_noegletal(ticker):
 try:
@@ -19,21 +21,26 @@ pe_ratio = info.get("trailingPE", "Ukendt")
 roe = info.get("returnOnEquity", "Ukendt")
 fcf = info.get("freeCashflow", None)
 eps = info.get("trailingEps", None)
-vækstrate = 0.08 # 8% vækst som default
-diskonteringsrente = 0.10 # 10% som WACC/afkastkrav
+pris = info.get("currentPrice", "Ukendt")
+gæld = info.get("totalDebt", "Ukendt")
+valuta = info.get("financialCurrency", "Ukendt")
+
+# DCF-beregning (simplificeret)
+vækstrate = 0.08
+diskonteringsrente = 0.10
 intrinsic_value = None
 if eps and isinstance(eps, (int, float)):
 intrinsic_value = round(eps * (1 + vækstrate) / (diskonteringsrente - vækstrate), 2)
-pris = info.get("currentPrice", "Ukendt")
-valuta = info.get("financialCurrency", "Ukendt")
+
 return {
+"Ticker": ticker,
 "P/E": pe_ratio,
-"ROE": roe,
-"EPS": eps,
+"ROIC": roe,
 "Free Cash Flow": fcf,
-"Aktuel Pris": pris,
-"Intrinsic Value (DCF estimeret)": intrinsic_value,
-"Valuta": valuta
+"Debt": gæld,
+"Current Price": pris,
+"Estimated Intrinsic Value (DCF)": intrinsic_value,
+"Currency": valuta
 }
 except Exception as e:
 return {"Fejl": str(e)}
@@ -41,15 +48,17 @@ return {"Fejl": str(e)}
 if st.button("🔍 Analyser aktie"):
 if ticker:
 noegletal = hent_noegletal(ticker)
-st.subheader("🔢 Hentede nøgletal")
+st.subheader("📊 Nøgletal")
 st.json(noegletal)
 
 fakta_tekst = "\n".join([f"{k}: {v}" for k, v in noegletal.items()])
+købspris_tekst = f"Brugerens købspris er: {købspris}" if købspris > 0 else "Ingen købspris angivet."
+
 messages = [
 {"role": "system", "content": (
 "Du er en investeringsrådgiver, der vurderer aktier ud fra Warren Buffetts principper. "
-"Her er de vigtigste nøgletal for aktien baseret på live data:\n" + fakta_tekst)},
-{"role": "user", "content": f"Ticker: {ticker}\nSpørgsmål: {prompt}"}
+"Her er data for aktien:\n" + fakta_tekst + "\n" + købspris_tekst)},
+{"role": "user", "content": f"Ticker: {ticker}\n{prompt}"}
 ]
 
 with st.spinner("GPT analyserer..."):
