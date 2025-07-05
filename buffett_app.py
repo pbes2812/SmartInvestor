@@ -1,8 +1,8 @@
 import streamlit as st
 import openai
 import yfinance as yf
-
-openai.api_key = "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"
+import os
+openai.api_key = os.environ.get("OPENAI_API_KEY")
 
 st.set_page_config(page_title="SmartInvestor med Intrinsic Value", layout="centered")
 st.title("📊 SmartInvestor – Buffett-analyse med intrinsic value")
