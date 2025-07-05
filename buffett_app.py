@@ -1,149 +1,67 @@
 import streamlit as st
+import openai
 import yfinance as yf
-from openai import OpenAI
-import datetime
 
-client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
+openai.api_key = "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"
 
-st.set_page_config(page_title="BuffettGPT+", layout="wide")
-st.title("📈 BuffettGPT+ – Din værdibaserede investeringsassistent")
+st.set_page_config(page_title="SmartInvestor med Intrinsic Value", layout="centered")
+st.title("📊 SmartInvestor – Buffett-analyse med intrinsic value")
 
-# --- Watchlist eksempel ---
-watchlist = ["AAPL", "PG", "JNJ", "NVO", "MSFT"]
-st.sidebar.header("📋 Min Watchlist")
-for ticker in watchlist:
-    st.sidebar.write(f"🔹 {ticker}")
+ticker = st.text_input("Indtast aktieticker (f.eks. AAPL, MSFT, NOVO-B.CO)", "")
+prompt = st.text_area("Hvad vil du gerne have vurderet?",
+"Er denne aktie undervurderet ifølge Warren Buffetts principper?")
 
-# --- DCF-rente valg ---
-discount_rate = st.sidebar.slider("📉 Vælg diskonteringsrente (DCF)", 5.0, 12.0, 10.0, step=0.5)
+def hent_noegletal(ticker):
+try:
+aktie = yf.Ticker(ticker)
+info = aktie.info
+pe_ratio = info.get("trailingPE", "Ukendt")
+roe = info.get("returnOnEquity", "Ukendt")
+fcf = info.get("freeCashflow", None)
+eps = info.get("trailingEps", None)
+vækstrate = 0.08 # 8% vækst som default
+diskonteringsrente = 0.10 # 10% som WACC/afkastkrav
+intrinsic_value = None
+if eps and isinstance(eps, (int, float)):
+intrinsic_value = round(eps * (1 + vækstrate) / (diskonteringsrente - vækstrate), 2)
+pris = info.get("currentPrice", "Ukendt")
+valuta = info.get("financialCurrency", "Ukendt")
+return {
+"P/E": pe_ratio,
+"ROE": roe,
+"EPS": eps,
+"Free Cash Flow": fcf,
+"Aktuel Pris": pris,
+"Intrinsic Value (DCF estimeret)": intrinsic_value,
+"Valuta": valuta
+}
+except Exception as e:
+return {"Fejl": str(e)}
 
-ticker = st.text_input("Indtast aktie-ticker (f.eks. AAPL, PG, JNJ)")
+if st.button("🔍 Analyser aktie"):
+if ticker:
+noegletal = hent_noegletal(ticker)
+st.subheader("🔢 Hentede nøgletal")
+st.json(noegletal)
 
-def get_stock_data(ticker_symbol):
-    stock = yf.Ticker(ticker_symbol)
-    info = stock.info
-    fcf = info.get("freeCashflow", None)
-    pe = info.get("trailingPE", None)
-    roic = info.get("returnOnEquity", None)
-    beta = info.get("beta", 1)
-    debt = info.get("totalDebt", None)
-    price = info.get("currentPrice", None)
+fakta_tekst = "\n".join([f"{k}: {v}" for k, v in noegletal.items()])
+messages = [
+{"role": "system", "content": (
+"Du er en investeringsrådgiver, der vurderer aktier ud fra Warren Buffetts principper. "
+"Her er de vigtigste nøgletal for aktien baseret på live data:\n" + fakta_tekst)},
+{"role": "user", "content": f"Ticker: {ticker}\nSpørgsmål: {prompt}"}
+]
 
-    moat_score = 0
-    if roic and roic > 0.15:
-        moat_score += 1
-    if beta < 1:
-        moat_score += 1
-
-    dcf_intrinsic = None
-    if fcf and price:
-        try:
-            growth = 0.08
-            years = 5
-            future_value = fcf * ((1 + growth) ** years)
-            dcf_intrinsic = future_value / ((1 + discount_rate / 100) ** years)
-        except:
-            pass
-
-    return {
-        "Ticker": ticker_symbol,
-        "P/E": pe,
-        "ROIC": roic,
-        "Free Cash Flow": fcf,
-        "Debt": debt,
-        "Stable": "Yes" if beta < 1.2 else "No",
-        "Moat Score (0-2)": moat_score,
-        "Estimated Intrinsic Value (DCF)": round(dcf_intrinsic, 2) if dcf_intrinsic else "N/A",
-        "Current Price": price
-    }
-
-def ask_buffett_like_ai(data):
-    prompt = f"""
-    Du er Warren Buffett, og du skal vurdere denne aktie ud fra dine investeringsprincipper.
-
-    - Ticker: {data['Ticker']}
-    - P/E: {data['P/E']}
-    - ROIC: {data['ROIC']}
-    - Free Cash Flow: {data['Free Cash Flow']}
-    - Total Debt: {data['Debt']}
-    - Stabilitet: {data['Stable']}
-    - Moat Score: {data['Moat Score (0-2)']}
-    - DCF Intrinsic Value: {data['Estimated Intrinsic Value (DCF)']}
-    - Current Price: {data['Current Price']}
-
-    Giv en kort analyse på dansk af aktien ud fra:
-    - Forståelig forretning
-    - Moat
-    - Sund økonomi
-    - Margin of safety
-
-    Afslut med én klar anbefaling i store bogstaver:
-    - "KØB", "HOLD" eller "SÆLG"
-    """
-    response = client.chat.completions.create(
-        model="gpt-3.5-turbo",
-        messages=[{"role": "user", "content": prompt}]
-    )
-    return response.choices[0].message.content
-
-def find_undervalued_stocks():
-    screening_prompt = f"""
-    Du er en investor, der tænker som Warren Buffett.
-
-    Ud fra kendt information foreslå 5 aktier, som pt. ser undervurderede ud ifølge:
-    - Lav P/E (under 20)
-    - ROIC > 12 %
-    - Positiv og stabil FCF
-    - Lav gæld
-    - Klar moat
-    - Pris under intrinsic value med margin of safety
-
-    Format:
-    1. Virksomhed (Ticker)
-       - Branche:
-       - P/E:
-       - ROIC:
-       - FCF:
-       - Gæld:
-       - Moat:
-       - Vurdering: KØB / HOLD / SÆLG
-       - Kommentar:
-    """
-    response = client.chat.completions.create(
-        model="gpt-3.5-turbo",
-        messages=[{"role": "user", "content": screening_prompt}]
-    )
-    return response.choices[0].message.content
-
-# --- Analyse-knap ---
-if st.button("🔍 Vurdér specifik aktie"):
-    if ticker:
-        with st.spinner("Henter data og analyserer..."):
-            try:
-                stock_data = get_stock_data(ticker)
-                st.subheader("📊 Nøgletal")
-                st.json(stock_data)
-                analysis = ask_buffett_like_ai(stock_data)
-                st.subheader("🧠 Buffetts vurdering")
-                st.markdown(analysis)
-            except Exception as e:
-                st.error(f"Noget gik galt: {e}")
-    else:
-        st.warning("Skriv en aktie-ticker først.")
-
-# --- Screening-knap ---
-if st.button("💡 Find gode billige aktier"):
-    with st.spinner("GPT screener markedet..."):
-        try:
-            recommendations = find_undervalued_stocks()
-            st.subheader("📋 GPT’s screening")
-            st.markdown(recommendations)
-        except Exception as e:
-            st.error(f"Noget gik galt: {e}")
-
-# --- Daglig “screening”-visning (simuleret) ---
-st.sidebar.markdown("---")
-st.sidebar.subheader("📆 Seneste screening (simuleret)")
-today = datetime.date.today()
-st.sidebar.text(f"{today.strftime('%d-%m-%Y')}")
-st.sidebar.text("🔹 PG – KØB\\n🔹 INTC – HOLD\\n🔹 T – SÆLG")
+with st.spinner("GPT analyserer..."):
+try:
+response = openai.ChatCompletion.create(
+model="gpt-4",
+messages=messages,
+temperature=0.3,
+)
+st.success("Analyse færdig")
+st.markdown(response['choices'][0]['message']['content'])
+except Exception as e:
+st.error(f"Fejl under GPT-analyse: {e}")
+else:
+st.warning("Indtast venligst et aktieticker.")
