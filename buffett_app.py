@@ -63,7 +63,9 @@ if st.button("🔍 Analyser aktie"):
 
         with st.spinner("GPT analyserer..."):
             try:
-                response = openai.ChatCompletion.create(
+                client = openai.OpenAI()
+              
+                response = client.chat.completions.create(
                     model="gpt-4",
                     messages=messages,
                     temperature=0.3,
