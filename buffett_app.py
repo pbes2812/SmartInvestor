@@ -69,7 +69,7 @@ if st.button("🔍 Analyser aktie"):
                     temperature=0.3,
                 )
                 st.success("Analyse færdig")
-                st.markdown(response['choices'][0]['message']['content'])
+                st.markdown(response.choices[0].message.content)
             except Exception as e:
                 st.error(f"Fejl under GPT-analyse: {e}")
     else:
